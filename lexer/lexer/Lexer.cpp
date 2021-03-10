@@ -63,6 +63,9 @@ void CLexer::ProcessChar(char ch)
 	case State::SquareBrackets:
 		ProcessCharInSquareBrackets(ch);
 		break;
+	case State::ExponentialNotation:
+		ProcessCharInExponentialNotation(ch);
+		break;
 	}
 }
 
@@ -102,6 +105,11 @@ void CLexer::ProcessCharWhenDefaultState(char ch)
 		{
 			m_currentLexeme.push_back(ch);
 		}
+		return;
+	}
+
+	if (IsPartOfExponentialNotation(ch))
+	{
 		return;
 	}
 
@@ -180,6 +188,35 @@ void CLexer::ProcessCharInSquareBrackets(char ch)
 	else if (!isdigit(ch))
 	{
 		isError = true;
+	}
+}
+
+void CLexer::ProcessCharInExponentialNotation(char ch)
+{
+	m_currentLexeme.push_back(ch);
+
+	bool isPlusOrMinus = (ch == '+' || ch == '-');
+	bool isCourrectSize = (m_currentLexeme.size() <= m_ePosition + 3);
+
+	if (m_currentLexeme.size() == m_ePosition + 1)
+	{
+		if (!isPlusOrMinus)
+		{
+			AddToken(TokenType::Error);
+			m_currentState = State::Default;
+		}
+	}
+	else if (!isdigit(ch) || !isCourrectSize)
+	{
+		AddToken(TokenType::Error);
+		m_currentState = State::Default;
+	}
+
+	char nextChar = m_istrm.peek();
+	if ((IsSeparator(nextChar) || IsBracket(nextChar) || GetTokenTypeByChar(nextChar) || nextChar == EOF) && isCourrectSize)
+	{
+		AddToken(TokenType::Float);
+		m_currentState = State::Default;
 	}
 }
 
@@ -421,6 +458,18 @@ bool CLexer::IsMultiLineCommentStart(char ch)
 	if (ch == '/' && m_istrm.peek() == '*')
 	{
 		m_currentState = State::MultiLineComment;
+		return true;
+	}
+	return false;
+}
+
+bool CLexer::IsPartOfExponentialNotation(char ch)
+{
+	if (ch == 'e' || ch == 'E' && (IsCurrentLexemeFloat() || m_currentLexeme == "."))
+	{
+		m_currentState = State::ExponentialNotation;
+		m_ePosition = m_currentLexeme.size() + 1;
+		m_currentLexeme.push_back(ch);
 		return true;
 	}
 	return false;
